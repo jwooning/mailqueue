@@ -10,8 +10,10 @@ import email.mime.text
 
 
 class MailQueue:
-  def __init__(self, maildir, config_path):
+  def __init__(self, maildir, faildir, config_path):
     self.maildir = maildir
+    self.faildir = faildir
+    self.ml_retries = {}
     self.parse_config(config_path)
 
     self.smtp = smtplib.SMTP_SSL(self.config['SERVER'], port=self.config['PORT'])
@@ -37,9 +39,9 @@ class MailQueue:
   def worker(self):
     while True:
       res = {}
-      for f in os.listdir(self.maildir):
-        mail_path = os.path.join(sites_dir, f)
-        if os.path.isfile(site_path):
+      for ml in os.listdir(self.maildir):
+        mail_path = os.path.join(self.maildir, ml)
+        if ml != '.keep' and os.path.isfile(mail_path) and os.access(mail_path, os.W_OK):
           try:
             with open(mail_path, 'r') as fp:
               to = fp.readline()
@@ -48,7 +50,30 @@ class MailQueue:
 
             self.send_smtp(to, subject, msg)
             os.remove(mail_path)
+            if ml in self.ml_retries:
+              del self.ml_retries[ml]
           except Exception as e:
-            print(e)
+            if ml not in self.ml_retries:
+              self.ml_retries[ml] = 0
+            self.ml_retries[ml] += 1
+            print(f'{int(time.time())} {ml}/{self.ml_retries[ml]} failed: {e}')
+
+            if self.ml_retries[lm] >= self.config['RETRIES']:
+              print(f'{int(time.time())} {ml} permanently failed')
+              os.rename(mail_path, mail_path.replace(self.maildir, self.faildir))
+              del self.ml_retries[ml]
 
       time.sleep(60)
+
+
+if __name__ == '__main__':
+  parser = argparse.ArgumentParser(description='Run mailqueue.')
+  parser.add_argument('--config', metavar='config', type=str, default='config.ini',
+                      help='configuration containing settings')
+  parser.add_argument('--maildir', metavar='maildir', type=str, default='maildir',
+                      help='directory containing the mail queue')
+  parser.add_argument('--faildir', metavar='faildir', type=str, default='faildir',
+                      help='directory containing the failed emails')
+  args = parser.parse_args()
+
+  MailQueue(os.path.join(os.getcwd(), args.maildir), os.path.join(os.getcwd(), args.maildir), args.config)
