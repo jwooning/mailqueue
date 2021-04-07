@@ -2,6 +2,7 @@
 import os
 import time
 import threading
+import argparse
 import configparser
 import smtplib
 import email
@@ -27,13 +28,14 @@ class MailQueue:
       print(f'Could not read config at: {path}')
     self.config = {k.upper(): v for k, v in config.items('DEFAULT')}
 
-  def send_smtp(self, to_addr, subject, msg):
+  def send_smtp(self, to_addr, subject, msg, is_html=False):
     msg_root = email.mime.multipart.MIMEMultipart('alternative')
     msg_root['Subject'] = subject
     msg_root['From'] = self.config['SENDER']
     msg_root['To'] = to_addr
 
-    msg_root.attach(email.mime.text.MIMEText(msg, 'html'))
+    mimetype = 'html' if is_html else 'plain'
+    msg_root.attach(email.mime.text.MIMEText(msg, mimetype))
     self.smtp.sendmail(self.config['SENDER'], [to_addr], msg_root.as_string())
 
   def worker(self):
@@ -41,14 +43,14 @@ class MailQueue:
       res = {}
       for ml in os.listdir(self.maildir):
         mail_path = os.path.join(self.maildir, ml)
-        if ml != '.keep' and os.path.isfile(mail_path) and os.access(mail_path, os.W_OK):
+        if not ml.startswith('.') and os.path.isfile(mail_path) and os.access(mail_path, os.W_OK):
           try:
             with open(mail_path, 'r') as fp:
               to = fp.readline()
               subject = fp.readline()
               msg = fp.read()
 
-            self.send_smtp(to, subject, msg)
+            self.send_smtp(to, subject, msg, is_html=msg.startswith('<html'))
             os.remove(mail_path)
             if ml in self.ml_retries:
               del self.ml_retries[ml]
@@ -58,12 +60,12 @@ class MailQueue:
             self.ml_retries[ml] += 1
             print(f'{int(time.time())} {ml}/{self.ml_retries[ml]} failed: {e}')
 
-            if self.ml_retries[lm] >= self.config['RETRIES']:
+            if self.ml_retries[lm] >= int(self.config['RETRIES']):
               print(f'{int(time.time())} {ml} permanently failed')
               os.rename(mail_path, mail_path.replace(self.maildir, self.faildir))
               del self.ml_retries[ml]
 
-      time.sleep(60)
+      time.sleep(int(self.config['TIMEOUT']))
 
 
 if __name__ == '__main__':
