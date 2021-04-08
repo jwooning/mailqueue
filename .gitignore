@@ -1,2 +1,4 @@
+.mailqueue.service
+
 *.log
 *.swp

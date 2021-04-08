@@ -1,13 +1,15 @@
 [Unit]
-Description=Headless chrome autmation tool
+Description=Easy email sending using files
 After=network-online.target
 
 [Service]
+User=<USER>
+Group=<GROUP>
 Type=simple
 Restart=always
 RestartSec=60
 WorkingDirectory=<WORKING_DIR>
-ExecStart=<PIPENV_PATH> run ./manager
+ExecStart=<PIPENV_PATH> run ./mailqueue.py
 
 [Install]
 WantedBy=multi-user.target
