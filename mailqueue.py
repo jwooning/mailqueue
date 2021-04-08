@@ -54,13 +54,14 @@ class MailQueue:
             os.remove(mail_path)
             if ml in self.ml_retries:
               del self.ml_retries[ml]
+            print(f'{int(time.time())} {ml} sent')
           except Exception as e:
             if ml not in self.ml_retries:
               self.ml_retries[ml] = 0
             self.ml_retries[ml] += 1
             print(f'{int(time.time())} {ml}/{self.ml_retries[ml]} failed: {e}')
 
-            if self.ml_retries[lm] >= int(self.config['RETRIES']):
+            if self.ml_retries[ml] >= int(self.config['RETRIES']):
               print(f'{int(time.time())} {ml} permanently failed')
               os.rename(mail_path, mail_path.replace(self.maildir, self.faildir))
               del self.ml_retries[ml]
