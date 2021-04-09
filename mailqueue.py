@@ -41,7 +41,7 @@ class MailQueue:
 
     try:
       self.smtp.sendmail(self.config['SENDER'], [to_addr], msg_root.as_string())
-    except smtplib.SMTPServerDisconnected:
+    except smtplib.SMTPException:
       print('Lost connection to smtp server, retrying')
       self.setup_smtp()
       self.smtp.sendmail(self.config['SENDER'], [to_addr], msg_root.as_string())
@@ -67,7 +67,7 @@ class MailQueue:
             if ml not in self.ml_retries:
               self.ml_retries[ml] = 0
             self.ml_retries[ml] += 1
-            print(f'{ml}/{self.ml_retries[ml]} failed: {e}')
+            print(f'{ml}/{self.ml_retries[ml]} failed: {type(e)}: {e}')
 
             if self.ml_retries[ml] >= int(self.config['RETRIES']):
               print(f'{ml} permanently failed')
