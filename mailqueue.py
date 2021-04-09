@@ -43,7 +43,7 @@ class MailQueue:
       self.smtp.sendmail(self.config['SENDER'], [to_addr], msg_root.as_string())
     except smtplib.SMTPServerDisconnected:
       print('Lost connection to smtp server, retrying')
-      self.setup_stmp()
+      self.setup_smtp()
       self.smtp.sendmail(self.config['SENDER'], [to_addr], msg_root.as_string())
 
   def worker(self):
