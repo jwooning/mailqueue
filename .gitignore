@@ -1,3 +1,8 @@
+maildir/*
+!maildir/.keep
+faildir/*
+!faildir/.keep
+
 .mailqueue.service
 
 *.log

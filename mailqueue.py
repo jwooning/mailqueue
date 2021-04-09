@@ -16,9 +16,7 @@ class MailQueue:
     self.faildir = faildir
     self.ml_retries = {}
     self.parse_config(config_path)
-
-    self.smtp = smtplib.SMTP_SSL(self.config['SERVER'], port=self.config['PORT'])
-    self.smtp.login(self.config['USERNAME'], self.config['PASSWORD'])
+    self.setup_smtp()
 
     threading.Thread(target=self.worker).start()
 
@@ -28,6 +26,10 @@ class MailQueue:
       print(f'Could not read config at: {path}')
     self.config = {k.upper(): v for k, v in config.items('DEFAULT')}
 
+  def setup_smtp(self):
+    self.smtp = smtplib.SMTP_SSL(self.config['SERVER'], port=self.config['PORT'])
+    self.smtp.login(self.config['USERNAME'], self.config['PASSWORD'])
+
   def send_smtp(self, to_addr, subject, msg, is_html=False):
     msg_root = email.mime.multipart.MIMEMultipart('alternative')
     msg_root['Subject'] = subject
@@ -36,7 +38,13 @@ class MailQueue:
 
     mimetype = 'html' if is_html else 'plain'
     msg_root.attach(email.mime.text.MIMEText(msg, mimetype))
-    self.smtp.sendmail(self.config['SENDER'], [to_addr], msg_root.as_string())
+
+    try:
+      self.smtp.sendmail(self.config['SENDER'], [to_addr], msg_root.as_string())
+    except smtplib.SMTPServerDisconnected:
+      print('Lost connection to smtp server, retrying')
+      self.setup_stmp()
+      self.smtp.sendmail(self.config['SENDER'], [to_addr], msg_root.as_string())
 
   def worker(self):
     while True:
@@ -79,4 +87,4 @@ if __name__ == '__main__':
                       help='directory containing the failed emails')
   args = parser.parse_args()
 
-  MailQueue(os.path.join(os.getcwd(), args.maildir), os.path.join(os.getcwd(), args.maildir), args.config)
+  MailQueue(os.path.join(os.getcwd(), args.maildir), os.path.join(os.getcwd(), args.faildir), args.config)
