@@ -2,8 +2,6 @@
 import os
 import time
 import threading
-import argparse
-import configparser
 import smtplib
 import email
 import email.mime.multipart
@@ -11,40 +9,42 @@ import email.mime.text
 
 
 class MailQueue:
-  def __init__(self, maildir, faildir, config_path):
+  def __init__(self, maildir, faildir, server, port, username, password, sender, retries, timeout):
     self.maildir = maildir
     self.faildir = faildir
+    self.server = server
+    self.port = port
+    self.username = username
+    self.password = password
+    self.sender = sender
+    self.retries = retries
+    self.timeout = timeout
+
     self.ml_retries = {}
-    self.parse_config(config_path)
+
     self.setup_smtp()
 
     threading.Thread(target=self.worker).start()
 
-  def parse_config(self, path):
-    config = configparser.ConfigParser()
-    if not config.read(path):
-      print(f'Could not read config at: {path}')
-    self.config = {k.upper(): v for k, v in config.items('DEFAULT')}
-
   def setup_smtp(self):
-    self.smtp = smtplib.SMTP_SSL(self.config['SERVER'], port=self.config['PORT'])
-    self.smtp.login(self.config['USERNAME'], self.config['PASSWORD'])
+    self.smtp = smtplib.SMTP_SSL(self.server, self.port)
+    self.smtp.login(self.username, self.password)
 
   def send_smtp(self, to_addr, subject, msg, is_html=False):
     msg_root = email.mime.multipart.MIMEMultipart('alternative')
     msg_root['Subject'] = subject
-    msg_root['From'] = self.config['SENDER']
+    msg_root['From'] = self.sender
     msg_root['To'] = to_addr
 
     mimetype = 'html' if is_html else 'plain'
     msg_root.attach(email.mime.text.MIMEText(msg, mimetype))
 
     try:
-      self.smtp.sendmail(self.config['SENDER'], [to_addr], msg_root.as_string())
+      self.smtp.sendmail(self.sender, [to_addr], msg_root.as_string())
     except smtplib.SMTPException:
       print('Lost connection to smtp server, retrying')
       self.setup_smtp()
-      self.smtp.sendmail(self.config['SENDER'], [to_addr], msg_root.as_string())
+      self.smtp.sendmail(self.sender, [to_addr], msg_root.as_string())
 
   def worker(self):
     while True:
@@ -69,22 +69,23 @@ class MailQueue:
             self.ml_retries[ml] += 1
             print(f'{ml}/{self.ml_retries[ml]} failed: {type(e)}: {e}')
 
-            if self.ml_retries[ml] >= int(self.config['RETRIES']):
+            if self.ml_retries[ml] >= int(self.retries):
               print(f'{ml} permanently failed')
               os.rename(mail_path, mail_path.replace(self.maildir, self.faildir))
               del self.ml_retries[ml]
 
-      time.sleep(int(self.config['TIMEOUT']))
+      time.sleep(int(self.timeout))
 
 
 if __name__ == '__main__':
-  parser = argparse.ArgumentParser(description='Run mailqueue.')
-  parser.add_argument('--config', metavar='config', type=str, default='config.ini',
-                      help='configuration containing settings')
-  parser.add_argument('--maildir', metavar='maildir', type=str, default='maildir',
-                      help='directory containing the mail queue')
-  parser.add_argument('--faildir', metavar='faildir', type=str, default='faildir',
-                      help='directory containing the failed emails')
-  args = parser.parse_args()
+  maildir = os.getenv('MAILDIR', '/maildir')
+  faildir = os.getenv('FAILDIR', '/faildir')
+  server = os.environ['SERVER']
+  port = int(os.environ['PORT'])
+  username = os.environ['USERNAME']
+  password = os.environ['PASSWORD']
+  sender = os.environ['SENDER']
+  retries = int(os.getenv('RETRIES', 5))
+  timeout = int(os.getenv('TIMEOUT', 60))
 
-  MailQueue(os.path.join(os.getcwd(), args.maildir), os.path.join(os.getcwd(), args.faildir), args.config)
+  MailQueue(maildir, faildir, server, port, username, password, sender, retries, timeout)
