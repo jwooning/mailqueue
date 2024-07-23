@@ -1,6 +1,10 @@
 services:
   mailqueue:
+    container_name: mailqueue
+    image: jwooning/mailqueue
+    pull_policy: build
     build: .
+    restart: always
     volumes:
       - /home/user/maildir:/maildir
       - faildir:/faildir
