@@ -1,6 +1,9 @@
 services:
   mailqueue:
     container_name: mailqueue
+    user: "120"
+    group_add:
+      - 120
     image: jwooning/mailqueue
     pull_policy: build
     build: .
