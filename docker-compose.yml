@@ -1,9 +1,7 @@
 services:
   mailqueue:
     container_name: mailqueue
-    user: "120"
-    group_add:
-      - 120
+    user: "120:120"
     image: jwooning/mailqueue
     pull_policy: build
     build: .
@@ -12,6 +10,7 @@ services:
       - /home/user/maildir:/maildir
       - faildir:/faildir
     environment:
+      - UMASK=002
       - SERVER=smtp.example.com
       - PORT=465
       - USERNAME=mailqueue@example.com

@@ -88,4 +88,7 @@ if __name__ == '__main__':
   retries = int(os.getenv('RETRIES', 5))
   timeout = int(os.getenv('TIMEOUT', 60))
 
+  if 'UMASK' in os.environ:
+    os.umask(int(os.environ['UMASK'], 8))
+
   MailQueue(maildir, faildir, server, port, username, password, sender, retries, timeout)
